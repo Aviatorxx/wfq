@@ -42,3 +42,6 @@ python src/plot.py logs/recv_log_rr.csv --title "RR cumulative bytes" --type byt
 
 echo "生成RTT延迟图..."
 python src/plot.py logs/send_log_rr.csv --title "RR packet delay" --type rtt
+
+echo "生成累积字节与带宽图..."
+python src/plot.py logs/recv_log_rr.csv --title "RR累积字节与带宽" --type bytes_rate

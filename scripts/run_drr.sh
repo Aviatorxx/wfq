@@ -41,4 +41,7 @@ echo "生成累积字节图..."
 python src/plot.py logs/recv_log_drr.csv --title "DRR累积字节" --type bytes
 
 echo "生成RTT延迟图..."
-python src/plot.py logs/send_log_drr.csv --title "DRR包延迟" --type rtt 
+python src/plot.py logs/send_log_drr.csv --title "DRR包延迟" --type rtt
+
+echo "生成累积字节与带宽图..."
+python src/plot.py logs/recv_log_drr.csv --title "DRR累积字节与带宽" --type bytes_rate 

@@ -42,3 +42,6 @@ python src/plot.py logs/recv_log_fifo.csv --title "FIFO cumulative bytes" --type
 
 echo "生成RTT延迟图..."
 python src/plot.py logs/send_log_fifo.csv --title "FIFO packet delay" --type rtt
+
+echo "生成累积字节与带宽图..."
+python src/plot.py logs/recv_log_fifo.csv --title "FIFO累积字节与带宽" --type bytes_rate
