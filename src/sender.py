@@ -29,6 +29,11 @@ def udp_sender(flow_id, weight, size, rate_mbps, duration, mode="fifo"):
         pkt = header + payload
         print(f"[Sender] 发送数据包: flow_id={flow_id}, 目标={C.ROUTER_IP}:{C.ROUTER_PORT_IN}, 大小={len(pkt)}字节")
         s.sendto(pkt, (C.ROUTER_IP, C.ROUTER_PORT_IN))
+        
+        # 记录发送的包
+        log_csv(f"logs/send_log_{mode}.csv", {
+            "us": send_ts, "flow": flow_id,
+            "size": len(pkt), "rtt_us": 0})
 
         # 收回包计算 RTT（非阻塞可用 select/poll）
         try:

@@ -1,4 +1,5 @@
 import struct, time, json, csv
+import os
 
 PROJECT_HDR_FMT = "!4s4sHHHH"   # IPv4(4)+IPv4(4)+port+port+weight+flowid = 16B
 PROJECT_HDR_LEN = struct.calcsize(PROJECT_HDR_FMT)  # 16
@@ -14,7 +15,9 @@ def now_us() -> int:
     return int(time.time()*1e6)
 
 def log_csv(path: str, row: dict):
+    file_exists = os.path.isfile(path)
     with open(path, "a", newline="") as f:
         w = csv.DictWriter(f, row.keys())
-        if f.tell() == 0: w.writeheader()
+        if not file_exists:
+            w.writeheader()
         w.writerow(row)
