@@ -48,52 +48,32 @@ def receiver(mode, router_type="fifo"):
                         {"us": ts, "flow": flow_id, "size": size})
 
                 # 定期打印统计信息
-                current_time = time.time()
-                if current_time - last_stats_time >= 10:
-                    elapsed = current_time - start_time
-                    print(f"\n[Receiver] 运行时间: {elapsed:.1f}秒, 统计信息:")
-                    for fid in sorted(packet_counts.keys()):
-                        print(f"  Flow {fid}: {packet_counts[fid]}个包, {byte_counts[fid]/1024:.1f}KB, {byte_counts[fid]/1024/elapsed:.2f}KB/s")
-                    last_stats_time = current_time
-
+                if time.time() - last_stats_time >= 10:
+                    print("\n[Receiver] 统计信息:")
+                    for flow_id in packet_counts:
+                        print(f"  Flow {flow_id}: {packet_counts[flow_id]} 包, {byte_counts[flow_id]} 字节")
+                    last_stats_time = time.time()
+                
+                # 如果是echo模式，发送回复
                 if mode == "echo":
-                    # 从数据包中提取原始发送者的端口
-                    sender_port = int.from_bytes(data[8:10], "big")
-                    sender_addr = ("127.0.0.1", sender_port)
-                    # 每100个包只打印一次，减少日志量
-                    if packet_counts[flow_id] % 100 == 0:
-                        print(f"[Receiver] 回复数据包到: {sender_addr}")
-                    reply_socket.sendto(data, sender_addr)  # 直接回复给原始发送者
-            except socket.error as e:
-                print(f"[Receiver] 网络错误: {e}")
-                time.sleep(0.1)  # 短暂暂停避免CPU空转
-                continue
+                    reply_socket.sendto(data, addr)
+                    
+            except KeyboardInterrupt:
+                print("\n[Receiver] 正在关闭...")
+                break
             except Exception as e:
-                print(f"[Receiver] 处理数据包时出错: {e}")
+                print(f"[Receiver] 错误: {e}")
                 continue
-    except socket.error as e:
-        print(f"[Receiver] 无法绑定到端口 {C.ROUTER_PORT_OUT}: {e}")
-        sys.exit(1)
-    except KeyboardInterrupt:
-        print("\n[Receiver] 接收器被用户中断")
-        # 打印最终统计信息
-        elapsed = time.time() - start_time
-        print(f"\n[Receiver] 总运行时间: {elapsed:.1f}秒, 最终统计信息:")
-        for fid in sorted(packet_counts.keys()):
-            print(f"  Flow {fid}: {packet_counts[fid]}个包, {byte_counts[fid]/1024:.1f}KB, {byte_counts[fid]/1024/elapsed:.2f}KB/s")
-        sys.exit(0)
+                
+    finally:
+        s.close()
+        if mode == "echo":
+            reply_socket.close()
+        print("[Receiver] 已关闭")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["log", "echo"], default="log", help="log: 只记录数据包; echo: 记录并回复数据包")
-    parser.add_argument("--router", choices=["fifo", "rr"], default="fifo", help="路由器类型: fifo或rr")
-    args = parser.parse_args()
-    
-    try:
-        receiver(args.mode, args.router)
-    except KeyboardInterrupt:
-        print("\n[Receiver] 接收器被用户中断")
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n[Receiver] 发生未预期错误: {e}")
-        sys.exit(1)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=["log", "echo"], default="log")
+    ap.add_argument("--router", choices=["fifo", "rr", "drr"], default="fifo")
+    args = ap.parse_args()
+    receiver(args.mode, args.router)

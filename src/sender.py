@@ -50,9 +50,9 @@ if __name__ == "__main__":
     ap.add_argument("--flow", type=int, required=True)
     ap.add_argument("--weight", type=int, required=True)
     ap.add_argument("--size", type=int, default=1024)
-    ap.add_argument("--rate", type=float, default=1.0, help="Mbps")
-    ap.add_argument("--dur",  type=int, default=10)
-    ap.add_argument("--mode", choices=["fifo", "rr"], default="fifo")
+    ap.add_argument("--rate", type=float, default=1.0)
+    ap.add_argument("--dur", type=float, default=10.0)
+    ap.add_argument("--mode", choices=["fifo", "rr", "drr"], default="fifo")
     args = ap.parse_args()
     
     # 确保日志目录存在
