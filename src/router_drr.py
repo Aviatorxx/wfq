@@ -18,7 +18,7 @@ class DRRRouter:
         self.weights = {}      # flow_id -> configured weight
 
         # 默认参数
-        self.default_quantum = 1024    # 基础量子 (与最大包长匹配)
+        self.default_quantum = 512     # 基础量子 (与最小包长匹配)
         self.default_weight = 1        # 新流默认权重
 
         # 日志配置
@@ -32,6 +32,9 @@ class DRRRouter:
         # 流量统计
         self.packets_received = 0
         self.packets_sent = 0
+        self.bytes_received = 0
+        self.bytes_sent = 0
+        self.flow_stats = {}  # flow_id -> {packets: 0, bytes: 0}
         self.last_stats_time = time.time()
 
     def set_flow_weight(self, flow_id, weight):
@@ -51,6 +54,14 @@ class DRRRouter:
             self.set_flow_weight(flow_id, self.default_weight)
         self.queues[flow_id].put(pkt)
         self.packets_received += 1
+        self.bytes_received += len(pkt)
+        
+        # 更新流统计
+        if flow_id not in self.flow_stats:
+            self.flow_stats[flow_id] = {"packets": 0, "bytes": 0}
+        self.flow_stats[flow_id]["packets"] += 1
+        self.flow_stats[flow_id]["bytes"] += len(pkt)
+        
         # 间隔 5 秒打印状态
         now = time.time()
         if now - self.last_stats_time > 5:
@@ -60,9 +71,15 @@ class DRRRouter:
     def print_stats(self):
         """输出当前队列与赤字状态"""
         lengths = {fid: q.qsize() for fid, q in self.queues.items()}
-        self.logger.info(f"Received={self.packets_received}, Sent={self.packets_sent}, Queues={lengths}")
+        self.logger.info(f"总统计: 接收包数={self.packets_received}, 发送包数={self.packets_sent}")
+        self.logger.info(f"总统计: 接收字节={self.bytes_received}, 发送字节={self.bytes_sent}")
+        self.logger.info(f"队列长度: {lengths}")
+        
         for fid in self.active_flows:
-            self.logger.info(f"Flow {fid}: weight={self.weights[fid]}, quantum={self.quantum[fid]}, deficit={self.deficit[fid]}")
+            stats = self.flow_stats.get(fid, {"packets": 0, "bytes": 0})
+            self.logger.info(f"流 {fid}: weight={self.weights[fid]}, quantum={self.quantum[fid]}, "
+                           f"deficit={self.deficit[fid]}, 处理包数={stats['packets']}, "
+                           f"处理字节={stats['bytes']}")
 
     def dequeue(self):
         """DRR 调度：本轮为流累加量子，并在同一轮中连续发包"""
@@ -75,8 +92,14 @@ class DRRRouter:
         self.active_flow_index %= len(self.active_flows)
         fid = self.active_flows[self.active_flow_index]
 
-        # 本轮累加量子
-        self.deficit[fid] += self.quantum[fid]
+        # 本轮累加量子，但确保赤字不超过量子值
+        if self.deficit[fid] < self.quantum[fid]:
+            self.deficit[fid] += self.quantum[fid]
+            self.logger.info(f"调度流 {fid}: 累加量子 {self.quantum[fid]}, 当前赤字 {self.deficit[fid]}")
+        else:
+            # 如果赤字已经达到或超过量子值，重置为0
+            self.deficit[fid] = 0
+            self.logger.info(f"流 {fid} 赤字达到量子值，重置为0")
 
         q = self.queues[fid]
         # 连续发送：只要队头包大小 <= 赤字，就出队并返回
@@ -87,11 +110,14 @@ class DRRRouter:
                 q.get()
                 self.deficit[fid] -= size
                 self.packets_sent += 1
+                self.bytes_sent += size
+                self.logger.info(f"流 {fid} 发送包: 大小={size}, 剩余赤字={self.deficit[fid]}")
                 return pkt
             break
 
         # 赤字不足或队列空，切换到下一个流
         self.active_flow_index = (self.active_flow_index + 1) % len(self.active_flows)
+        self.logger.info(f"流 {fid} 赤字不足或队列空，切换到下一个流")
         return None
 
     def recv_loop(self):

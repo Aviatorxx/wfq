@@ -1,108 +1,142 @@
-# 加权公平队列 (WFQ) 实现
+# DRR (Deficit Round Robin) 路由器实现
 
-本项目实现了一个基于UDP的网络流量调度系统，包括发送端、路由器和接收端，用于演示和比较不同调度算法（FIFO和RR）的性能差异。
+这是一个基于Python实现的DRR（Deficit Round Robin）路由器项目，用于研究和演示DRR调度算法的工作原理。该项目包含完整的发送端、接收端和路由器实现，支持多流并发传输和基于权重的公平调度。
 
 ## 项目结构
 
 ```
-wfq/ 
- │ 
- ├─ src/                     # 代码 
- │   ├─ config.py            # 统一端口/IP/速率等参数 
- │   ├─ common.py            # 公用函数：打日志、时间戳、ProjectHeader 结构 
- │   ├─ sender.py            # 发送端 
- │   ├─ receiver.py          # 接收 & 回包 
- │   ├─ router.py            # FIFO调度 
- │   ├─ router_rr.py         # 轮询(Round Robin)调度 
- │   └─ plot.py              # 读 CSV 画图 
- │ 
- ├─ scripts/                 # 一键实验脚本 
- │   ├─ run_fifo.sh          # 运行FIFO实验 
- │   └─ run_rr.sh            # 运行RR实验 
- │ 
- ├─ logs/                    # 运行期生成 
- │   ├─ recv_log_fifo.csv    # FIFO接收日志 
- │   ├─ send_log_fifo.csv    # FIFO发送日志 
- │   ├─ recv_log_rr.csv      # RR接收日志 
- │   └─ send_log_rr.csv      # RR发送日志 
- │ 
- ├─ environment.yml         # 环境配置 
- └─ README.md               # 项目说明 
+src/
+├── router_drr.py    # DRR路由器实现
+├── sender.py        # 发送端实现
+├── receiver.py      # 接收端实现
+├── test_drr.py      # 测试脚本
+├── common.py        # 公共定义
+├── config.py        # 配置文件
+├── plot.py          # 数据可视化
+└── run_experiment.py # 实验运行脚本
 ```
 
-## 功能说明
+## 功能特点
 
-### 发送端 (sender.py)
+- 完整实现DRR调度算法
+- 支持多流并发传输
+- 基于权重的公平调度
+- 实时流量统计和监控
+- 详细的日志记录
+- 支持RTT测量
+- 可配置的测试场景
 
-- 按指定速率发送UDP数据包
-- 支持设置流ID、权重、包大小等参数
-- 接收回包并计算RTT延迟
+## 安装要求
 
-### 接收端 (receiver.py)
+- Python 3.6+
+- 依赖包：
+  - socket
+  - threading
+  - struct
+  - logging
+  - time
+  - csv
+  - os
 
-- 支持两种模式：log（仅记录）和echo（回包）
-- 记录接收到的数据包信息（时间戳、流ID、大小）
+## 快速开始
 
-### 路由器
-
-- FIFO路由器 (router.py)：先进先出队列
-- RR路由器 (router_rr.py)：轮询调度算法
-
-### 数据分析 (plot.py)
-
-- 绘制累积字节图：展示不同流随时间的数据传输量
-- 绘制RTT延迟图：展示不同流的数据包延迟情况
-
-## 使用方法
-
-### 运行FIFO实验
-
+1. 启动接收器：
 ```bash
-bash scripts/run_fifo.sh
+python src/receiver.py --mode log --router drr
 ```
 
-### 运行RR实验
-
+2. 启动DRR路由器：
 ```bash
-bash scripts/run_rr.sh
+python src/router_drr.py
 ```
 
-### 手动运行组件
+3. 运行测试脚本：
+```bash
+python src/test_drr.py
+```
 
-1. 启动接收端：
-   ```bash
-   python src/receiver.py --mode echo --router fifo
-   ```
+## 配置说明
 
-2. 启动路由器：
-   ```bash
-   python src/router.py  # FIFO路由器
-   # 或
-   python src/router_rr.py  # RR路由器
-   ```
+主要配置参数（在`config.py`中）：
 
-3. 启动发送端：
-   ```bash
-   python src/sender.py --flow 1 --weight 1 --size 1024 --rate 1 --dur 10 --mode fifo
-   ```
+- `SENDER_BIND_IP`: 发送端绑定IP
+- `ROUTER_IP`: 路由器IP
+- `RECEIVER_IP`: 接收端IP
+- `ROUTER_PORT_IN`: 路由器输入端口（默认9000）
+- `ROUTER_PORT_OUT`: 路由器输出端口（默认9001）
+- `RECEIVER_PORT`: 接收端端口（默认9002）
+- `SENDER_PORT_BASE`: 发送端基础端口（默认10000）
+- `PAYLOAD_MAX`: 最大负载大小（默认1400字节）
 
-4. 绘制图表：
-   ```bash
-   # 绘制累积字节图
-   python src/plot.py logs/recv_log_fifo.csv --title "FIFO cumulative bytes" --type bytes
-   
-   # 绘制RTT延迟图
-   python src/plot.py logs/send_log_fifo.csv --title "FIFO packet delay" --type rtt
-   ```
+## DRR算法实现
 
-## 实验设计
+DRR（Deficit Round Robin）算法的核心组件：
 
-实验按以下步骤进行：
+1. 数据结构：
+   - 每个流维护独立的队列
+   - 每个流有独立的量子值（quantum）
+   - 每个流有独立的赤字计数器（deficit）
 
-1. 启动Flow 1（权重=1，包大小=1024）
-2. 2秒后，启动Flow 2（权重=1，包大小=512）
-3. 再过2秒，启动Flow 3（权重=2，包大小=1024）
-4. 2秒后，停止Flow 2
-5. 再过2秒，停止所有流
+2. 调度机制：
+   - 基于权重的量子值计算
+   - 赤字累加和消耗
+   - 轮转调度
 
-通过比较FIFO和RR两种调度算法下的累积字节图和RTT延迟图，可以观察不同调度算法对网络流量的影响。
+3. 性能指标：
+   - 包计数
+   - 字节计数
+   - 队列长度
+   - RTT测量
+
+## 测试场景
+
+测试脚本（`test_drr.py`）提供了以下测试场景：
+
+```python
+flows = [
+    (1, 1, 512, 0.001),   # 流1: 权重1, 包大小512字节, 间隔1ms
+    (2, 2, 512, 0.001),   # 流2: 权重2, 包大小512字节, 间隔1ms
+    (3, 4, 512, 0.001),   # 流3: 权重4, 包大小512字节, 间隔1ms
+]
+```
+
+## 日志和监控
+
+- 发送端日志：`logs/send_log_drr.csv`
+- 接收端日志：`logs/recv_log_drr.csv`
+- 路由器状态：每5秒输出一次统计信息
+
+## 高级用法
+
+1. 自定义测试场景：
+```bash
+python src/sender.py --flow 1 --weight 2 --size 1024 --rate 1.0 --dur 10.0 --mode drr
+```
+
+2. 运行完整实验：
+```bash
+python src/run_experiment.py
+```
+
+## 性能指标
+
+- 包处理速率
+- 队列长度
+- 延迟分布
+- 带宽利用率
+- 公平性指标
+
+## 注意事项
+
+1. 确保端口未被占用
+2. 检查防火墙设置
+3. 确保有足够的系统资源
+4. 建议在测试环境中运行
+
+## 贡献指南
+
+欢迎提交Issue和Pull Request来改进项目。
+
+## 许可证
+
+MIT License

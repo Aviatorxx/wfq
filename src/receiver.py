@@ -76,4 +76,4 @@ if __name__ == "__main__":
     ap.add_argument("--mode", choices=["log", "echo"], default="log")
     ap.add_argument("--router", choices=["fifo", "rr", "drr"], default="fifo")
     args = ap.parse_args()
-    receiver(args.mode, args.router)
+        receiver(args.mode, args.router)
